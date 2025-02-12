@@ -1,7 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'location_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  static const platform = MethodChannel('com.example.findmyphone/device');
+
+  String _deviceModel = "Loading...";
+  String _deviceBattery = "Loading...";
+  String _deviceChip = "Loading...";
+  String _wifiStatus = "Loading..."; // Wi-Fi status instead of storage/IMEI
+
+  @override
+  void initState() {
+    super.initState();
+    _getDeviceInfo();
+  }
+
+  // Fetch device info including Wi-Fi status using MethodChannel
+  Future<void> _getDeviceInfo() async {
+    try {
+      final Map<String, dynamic> deviceInfo = Map<String, dynamic>.from(
+          await platform.invokeMethod('getDeviceInfo'));
+
+      setState(() {
+        _deviceModel = deviceInfo['model'] ?? 'Unknown model';
+        _deviceBattery = '${deviceInfo['batteryLevel']}%' ?? 'Unknown battery';
+        _deviceChip = deviceInfo['cpuArchitecture'] ?? 'Unknown chip';
+        _wifiStatus = deviceInfo['wifiStatus'] ?? 'No Wi-Fi connection';
+      });
+    } on PlatformException catch (e) {
+      print("Failed to get device info: '${e.message}'.");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -39,7 +75,7 @@ class HomeScreen extends StatelessWidget {
                 "Devices",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              _deviceList(context), // 🔹 Kirim context ke _deviceList()
+              _deviceList(context),
             ],
           ),
         ),
@@ -70,11 +106,11 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _infoRow(Icons.smartphone, "Model: Android 12"),
-                  _infoRow(Icons.battery_full, "Battery: 90%"),
-                  _infoRow(Icons.memory, "Chip: A15 Bionic"),
-                  _infoRow(Icons.storage, "Storage: 64GB/24GB"),
-                  _infoRow(Icons.confirmation_number, "IMEI: 35-673874-7 385273-2"),
+                  _infoRow(Icons.smartphone, "Model: $_deviceModel"),
+                  _infoRow(Icons.battery_full, "Battery: $_deviceBattery"),
+                  _infoRow(Icons.memory, "Chip: $_deviceChip"),
+                  _infoRow(Icons.wifi,
+                      "Wi-Fi: $_wifiStatus"), // Wi-Fi info instead of storage
                 ],
               ),
             ),
@@ -103,7 +139,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _deviceList(BuildContext context) { // 🔹 Tambahkan parameter context
+  Widget _deviceList(BuildContext context) {
     return Column(
       children: [
         _deviceTile(context, "JINGFEI's AirPods Pro", "Online", "120KM", "90%"),
@@ -112,7 +148,8 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _deviceTile(BuildContext context, String name, String status, String distance, String battery) {
+  Widget _deviceTile(BuildContext context, String name, String status,
+      String distance, String battery) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 3,
@@ -126,13 +163,13 @@ class HomeScreen extends StatelessWidget {
           children: [
             const Icon(Icons.location_on, size: 16, color: Colors.blue),
             Text(" $distance  "),
-            const Icon(Icons.battery_charging_full, size: 16, color: Colors.green),
+            const Icon(Icons.battery_charging_full,
+                size: 16, color: Colors.green),
             Text(" $battery"),
           ],
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
-          // 🔹 Navigasi ke LocationScreen saat diklik
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const LocationScreen()),

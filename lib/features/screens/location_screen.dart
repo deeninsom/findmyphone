@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 
 class LocationScreen extends StatefulWidget {
   const LocationScreen({super.key});
@@ -12,52 +11,30 @@ class LocationScreen extends StatefulWidget {
 }
 
 class _LocationScreenState extends State<LocationScreen> {
-  static const EventChannel _locationChannel = EventChannel('com.example.findmyphone/location');
+  static const EventChannel _locationChannel =
+      EventChannel('com.example.findmyphone/location');
   LatLng? _currentPosition;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation(); // Ambil lokasi awal
-    _startListeningLocation(); // Mulai mendengarkan update lokasi
+    _startListeningLocation(); // Start listening for location updates
   }
 
-  /// Mengambil lokasi awal sebelum menerima update dari EventChannel
-  Future<void> _getCurrentLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      setState(() => _isLoading = false);
-      return;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        setState(() => _isLoading = false);
-        return;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      setState(() => _isLoading = false);
-      return;
-    }
-
-    Position position = await Geolocator.getCurrentPosition();
-    setState(() {
-      _currentPosition = LatLng(position.latitude, position.longitude);
-      _isLoading = false;
-    });
-  }
-
-  /// Mendengarkan update lokasi secara real-time dari background service
+  /// Listen for real-time location updates from the background service
   void _startListeningLocation() {
     _locationChannel.receiveBroadcastStream().listen((event) {
-      setState(() {
-        _currentPosition = LatLng(event['latitude'], event['longitude']);
-      });
+      print("Received location: $event"); // Check what data you're receiving
+      if (event != null &&
+          event['latitude'] != null &&
+          event['longitude'] != null) {
+        setState(() {
+          _currentPosition = LatLng(event['latitude'], event['longitude']);
+          _isLoading =
+              false; // After receiving the first location update, set loading to false
+        });
+      }
     }, onError: (error) {
       print("Error receiving location updates: $error");
     });
@@ -72,31 +49,44 @@ class _LocationScreenState extends State<LocationScreen> {
               ? const Center(child: CircularProgressIndicator())
               : FlutterMap(
                   options: MapOptions(
-                    initialCenter: _currentPosition!,
+                    initialCenter:
+                        _currentPosition!, // Use center instead of initialCenter
                     initialZoom: 15.0,
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                      urlTemplate:
+                          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
                       subdomains: ['a', 'b', 'c'],
                     ),
                     MarkerLayer(
                       markers: [
                         Marker(
+                          width: 40.0,
+                          height: 40.0,
                           point: _currentPosition!,
-                          width: 50,
-                          height: 50,
-                          child: const Icon(
-                            Icons.location_pin,
-                            color: Colors.red,
-                            size: 40,
+                          child: Icon(
+                            Icons.my_location,
+                            color: Colors.blue,
+                            size: 30.0,
                           ),
+                        ),
+                      ],
+                    ),
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: _currentPosition!,
+                          radius: 50.0, // Radius dalam meter
+                          useRadiusInMeter: true,
+                          color: Colors.blue.withOpacity(0.3),
+                          borderColor: Colors.blue,
+                          borderStrokeWidth: 2,
                         ),
                       ],
                     ),
                   ],
                 ),
-
           Positioned(
             bottom: 20,
             left: 20,
@@ -132,9 +122,9 @@ class _LocationScreenState extends State<LocationScreen> {
                   ),
             const SizedBox(height: 10),
             ElevatedButton.icon(
-              onPressed: _getCurrentLocation,
+              onPressed: null, // No need for _getCurrentLocation anymore
               icon: const Icon(Icons.my_location),
-              label: const Text("Refresh Location"),
+              label: const Text("Location updates are received automatically."),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue.shade800,
                 foregroundColor: Colors.white,

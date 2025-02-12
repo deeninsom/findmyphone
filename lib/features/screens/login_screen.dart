@@ -15,7 +15,6 @@ class _LoginScreenState extends State<LoginScreen> {
   void _login() {
     print("Email: ${_emailController.text}");
     print("Password: ${_passwordController.text}");
-    // Implement login logic here
 
     Navigator.pushReplacement(
       context,

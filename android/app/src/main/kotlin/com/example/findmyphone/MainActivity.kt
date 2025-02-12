@@ -15,20 +15,26 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
+import android.os.BatteryManager
+import android.os.Environment
+import android.os.StatFs
+import android.telephony.TelephonyManager
+
 
 import android.os.Bundle
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.findmyphone/service"
     private val LOCATION_CHANNEL = "com.example.findmyphone/location"
+    private val DEVICE_CHANNEL = "com.example.findmyphone/device" 
     private val REQUEST_CODE = 1001
     private var pendingResult: MethodChannel.Result? = null
     private var requestedPermission: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        startForegroundServiceIfNeeded()
         Log.d("MainActivity", "onCreate() called. Foreground service running ...")
+        startForegroundServiceIfNeeded()
     }
 
     private fun startForegroundServiceIfNeeded() {
@@ -56,7 +62,6 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
         // MethodChannel untuk menangani izin dan service
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -87,12 +92,23 @@ class MainActivity : FlutterActivity() {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     ForegroundService.instance?.setEventSink(events)
                 }
-
+        
                 override fun onCancel(arguments: Any?) {
                     ForegroundService.instance?.setEventSink(null)
                 }
             }
         )
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getDeviceInfo" -> {
+                    val deviceInfo = getDeviceInfo()
+                    result.success(deviceInfo)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        
     }
 
     private fun getMissingPermissions(): List<String> {
@@ -190,4 +206,45 @@ class MainActivity : FlutterActivity() {
             result.success(true)
         }
     }
+
+    // New method to fetch device information
+    // Remove the getStorageInfo() and getImei() methods
+
+private fun getDeviceInfo(): Map<String, Any> {
+    val deviceInfo = mutableMapOf<String, Any>()
+    
+    // Model and Manufacturer
+    deviceInfo["model"] = Build.MODEL
+    deviceInfo["manufacturer"] = Build.MANUFACTURER
+    
+    // Battery level
+    val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+    val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+    deviceInfo["batteryLevel"] = batteryLevel
+    
+    // Chipset (CPU Architecture)
+    val cpuArch = Build.SUPPORTED_ABIS[0]
+    deviceInfo["cpuArchitecture"] = cpuArch
+    
+    // Wi-Fi Status
+    val wifiStatus = getWifiStatus()
+    deviceInfo["wifiStatus"] = wifiStatus
+
+    return deviceInfo
+}
+
+// Method to fetch Wi-Fi status
+private fun getWifiStatus(): String {
+    val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+    val connectionInfo = wifiManager.connectionInfo
+
+    return if (connectionInfo.networkId == -1) {
+        "No Wi-Fi Connection"
+    } else {
+        val ssid = connectionInfo.ssid.replace("\"", "")
+        "$ssid"
+    }
+}
+
+    
 }

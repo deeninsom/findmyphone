@@ -5,11 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.ImageFormat
-import android.hardware.Camera
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraDevice
-import android.hardware.camera2.CameraCaptureSession
-import android.hardware.camera2.CameraManager
+import android.hardware.camera2.*
 import android.media.Image
 import android.media.ImageReader
 import android.os.*
@@ -24,52 +20,37 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Executors
 
-
 class CameraCaptureActivity : Activity() {
 
-    private val CAMERA_AND_STORAGE_PERMISSION_REQUEST_CODE = 124
-    private var camera: Camera? = null
+    private val CAMERA_PERMISSION_REQUEST_CODE = 101
     private var cameraDevice: CameraDevice? = null
     private var captureSession: CameraCaptureSession? = null
     private var imageReader: ImageReader? = null
     private var cameraId: String? = null
-
-    private val executor = Executors.newSingleThreadExecutor()
     private lateinit var cameraManager: CameraManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         if (checkPermissions()) {
-            captureImage()
+            setupCamera()
         } else {
             requestPermissions()
         }
     }
 
     private fun checkPermissions(): Boolean {
-        val permissions = arrayOf(
-            Manifest.permission.CAMERA,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-        )
-        return permissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-        }
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun requestPermissions() {
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE),
-            CAMERA_AND_STORAGE_PERMISSION_REQUEST_CODE
-        )
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST_CODE)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == CAMERA_AND_STORAGE_PERMISSION_REQUEST_CODE) {
+        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
             if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                captureImage()
+                setupCamera()
             } else {
                 Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
                 finish()
@@ -77,48 +58,59 @@ class CameraCaptureActivity : Activity() {
         }
     }
 
-    private fun captureImage() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            Toast.makeText(this, "Using Camera2 API", Toast.LENGTH_SHORT).show()
-            captureUsingCamera2() // Capture image in background
-        } else {
-            Toast.makeText(this, "Using Legacy Camera API", Toast.LENGTH_SHORT).show()
-            captureUsingLegacyCamera() // Capture image in background
+    private fun setupCamera() {
+        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        try {
+            val frontCameras = cameraManager.cameraIdList.filter { id ->
+                cameraManager.getCameraCharacteristics(id)
+                    .get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
+            }
+
+            // Pilih kamera inframerah jika tersedia
+            cameraId = frontCameras.firstOrNull { id ->
+                val characteristics = cameraManager.getCameraCharacteristics(id)
+                isInfraredCamera(characteristics)
+            } ?: frontCameras.firstOrNull() // Fallback ke kamera depan biasa jika inframerah tidak ditemukan
+
+            if (cameraId != null) {
+                Log.d("CameraCaptureActivity", "Using Camera ID: $cameraId")
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    getCameraCharacteristics() // Dapatkan karakteristik kamera
+                    cameraManager.openCamera(cameraId!!, cameraStateCallback, Handler(Looper.getMainLooper()))
+                }
+            } else {
+                Toast.makeText(this, "Front camera not found", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("CameraCaptureActivity", "Error accessing Camera2 API: ${e.message}")
         }
     }
 
-    // ===================== CAMERA2 API (Android 5.0+) ===================== //
-    private fun captureUsingCamera2() {
-    cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-    try {
-        // Log all available cameras
-        cameraManager.cameraIdList.forEach { id ->
+    private fun isInfraredCamera(characteristics: CameraCharacteristics): Boolean {
+        val capabilities = characteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+        val physicalSize = characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+        val isMonochrome = capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MONOCHROME) == true
+
+        // Deteksi kamera inframerah berdasarkan fitur monochrome dan ukuran sensor
+        return isMonochrome && physicalSize?.width == 1.0f && physicalSize.height == 1.0f
+    }
+
+    private fun getCameraCharacteristics() {
+        cameraId?.let { id ->
             val characteristics = cameraManager.getCameraCharacteristics(id)
-            val lensFacing = characteristics.get(CameraCharacteristics.LENS_FACING)
-            val cameraName = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) "Front" else "Back"
-            Log.d("CameraCaptureActivity", "Camera ID: $id - $cameraName")
-        }
 
-        // Select the front-facing camera as the default
-        cameraId = cameraManager.cameraIdList.firstOrNull { id ->
-            cameraManager.getCameraCharacteristics(id)
-                .get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
-        }
+            val exposureRange = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
+            val isoRange = characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
 
-Log.d("CameraCaptureActivity", "tidak temu")
-        // If a front camera is found, open it
-        if (cameraId != null) {
-            Log.d("CameraCaptureActivity", "Using Camera ID: $cameraId for front camera.")
-            cameraManager.openCamera(cameraId!!, cameraStateCallback, Handler(Looper.getMainLooper()))
-        } else {
-            Toast.makeText(this, "Front camera not found", Toast.LENGTH_SHORT).show()
-        }
+            exposureRange?.let {
+                Log.d("CameraCaptureActivity", "Exposure Range: $it")
+            }
 
-    } catch (e: Exception) {
-        Log.e("CameraCaptureActivity", "Error accessing Camera2 API: ${e.message}")
+            isoRange?.let {
+                Log.d("CameraCaptureActivity", "ISO Range: $it")
+            }
+        }
     }
-}
-
 
     private val cameraStateCallback = object : CameraDevice.StateCallback() {
         override fun onOpened(camera: CameraDevice) {
@@ -139,28 +131,62 @@ Log.d("CameraCaptureActivity", "tidak temu")
     }
 
     private fun startCameraCaptureSession() {
-        imageReader = ImageReader.newInstance(640, 480, ImageFormat.JPEG, 1)
+        val characteristics = cameraManager.getCameraCharacteristics(cameraId!!)
+        val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        val highestResolution = map?.getOutputSizes(ImageFormat.JPEG)?.maxByOrNull { it.width * it.height }
+
+        imageReader = if (highestResolution != null) {
+            ImageReader.newInstance(highestResolution.width, highestResolution.height, ImageFormat.JPEG, 1)
+        } else {
+            ImageReader.newInstance(640, 480, ImageFormat.JPEG, 1)
+        }
+
         imageReader?.setOnImageAvailableListener({ reader ->
             reader.acquireLatestImage()?.let { saveImage(it) }
-        }, null)
+        }, Handler(Looper.getMainLooper()))
 
-        val targets = listOf(imageReader?.surface)
-        cameraDevice?.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
-            override fun onConfigured(session: CameraCaptureSession) {
-                captureSession = session
-                captureImageWithCamera2()
-            }
+        val surface = imageReader!!.surface
+        cameraDevice?.createCaptureSession(
+            listOf(surface),
+            object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(session: CameraCaptureSession) {
+                    captureSession = session
+                    captureImageWithCamera2()
+                }
 
-            override fun onConfigureFailed(session: CameraCaptureSession) {
-                Toast.makeText(this@CameraCaptureActivity, "Camera session failed", Toast.LENGTH_SHORT).show()
-            }
-        }, null)
+                override fun onConfigureFailed(session: CameraCaptureSession) {
+                    Toast.makeText(this@CameraCaptureActivity, "Camera session failed", Toast.LENGTH_SHORT).show()
+                }
+            },
+            Handler(Looper.getMainLooper())
+        )
     }
 
     private fun captureImageWithCamera2() {
-        cameraDevice?.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)?.apply {
-            addTarget(imageReader!!.surface)
-            captureSession?.capture(build(), null, null)
+        try {
+            val captureRequestbuilder = cameraDevice?.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)?.apply {
+                addTarget(imageReader!!.surface)
+
+                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                set(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+
+                val exposureRange = cameraManager.getCameraCharacteristics(cameraId!!).get(
+                    CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE
+                )
+                val optimalExposure = exposureRange?.upper ?: 0
+                set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, optimalExposure)
+
+                val isoRange = cameraManager.getCameraCharacteristics(cameraId!!).get(
+                    CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE
+                )
+                val optimalISO = isoRange?.upper ?: 800
+                set(CaptureRequest.SENSOR_SENSITIVITY, optimalISO)
+
+            }
+            captureSession?.capture(captureRequestbuilder!!.build(), null, null)
+        } catch (e: Exception) {
+            Log.e("CameraCaptureActivity", "Error capturing image: ${e.message}")
         }
     }
 
@@ -174,51 +200,11 @@ Log.d("CameraCaptureActivity", "tidak temu")
         runOnUiThread {
             savedFile?.let {
                 Toast.makeText(this@CameraCaptureActivity, "Image saved at: ${it.absolutePath}", Toast.LENGTH_SHORT).show()
+                finish()
             }
         }
     }
 
-    // ===================== LEGACY CAMERA API (Android 4.4) ===================== //
-    private fun captureUsingLegacyCamera() {
-        executor.execute {
-            try {
-                val cameraId = findFrontCameraId()
-                if (cameraId == -1) {
-                    runOnUiThread {
-                        Toast.makeText(this, "Front camera not found", Toast.LENGTH_SHORT).show()
-                    }
-                    return@execute
-                }
-
-                camera = Camera.open(cameraId)
-                camera?.apply {
-                    setPreviewCallback { _, _ ->
-                        // No preview callback needed, it's for background capture
-                    }
-                    takePicture(null, null, Camera.PictureCallback { data, _ ->
-                        saveImageToStorage(data)
-                    })
-                }
-            } catch (e: Exception) {
-                Log.e("CameraCaptureActivity", "Error opening camera: ${e.message}")
-                releaseCamera()
-            }
-        }
-    }
-
-    private fun findFrontCameraId(): Int {
-        val numberOfCameras = Camera.getNumberOfCameras()
-        for (i in 0 until numberOfCameras) {
-            val info = Camera.CameraInfo()
-            Camera.getCameraInfo(i, info)
-            if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-                return i
-            }
-        }
-        return -1
-    }
-
-    // ===================== IMAGE STORAGE ===================== //
     private fun saveImageToStorage(imageData: ByteArray): File? {
         val directory = File(getExternalFilesDir(null), "CapturedImages")
         if (!directory.exists()) directory.mkdirs()
@@ -235,8 +221,9 @@ Log.d("CameraCaptureActivity", "tidak temu")
         }
     }
 
-    private fun releaseCamera() {
-        camera?.release()
-        camera = null
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraDevice?.close()
+        cameraDevice = null
     }
 }

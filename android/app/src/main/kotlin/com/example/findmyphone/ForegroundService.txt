@@ -1,0 +1,137 @@
+package com.example.findmyphone
+
+import android.app.*
+import android.content.*
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkRequest
+import android.os.*
+import android.util.Log
+import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import java.io.File
+import java.io.FileOutputStream
+
+class ForegroundService : Service() {
+
+    private val CHANNEL_ID = "findmyphone_service"
+    private val NOTIFICATION_ID = 1
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private lateinit var wakeLock: PowerManager.WakeLock
+
+    override fun onCreate() {
+        super.onCreate()
+        startForegroundServiceOnce()
+        registerUsbReceiver()
+        registerNetworkCallback()
+        acquireWakeLock()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        return START_STICKY
+    }
+
+    private fun startForegroundServiceOnce() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Foreground Service Channel",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Security Service Active")
+            .setContentText("Monitoring USB & Network ...")
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun registerUsbReceiver() {
+        val filter = IntentFilter(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+        registerReceiver(usbReceiver, filter)
+    }
+
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (UsbManager.ACTION_USB_DEVICE_ATTACHED == intent.action) {
+                val usbDevice = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+                usbDevice?.let { handleUsbDevice(it) }
+            }
+        }
+    }
+
+    private fun handleUsbDevice(device: UsbDevice) {
+        showToast("USB device detected")
+        saveFingerprintData("USB Device Connected: ${device.deviceName} at ${System.currentTimeMillis()}")
+        Log.d("ForegroundService", "USB device detected: ${device.deviceName}")
+    }
+
+    private fun saveFingerprintData(data: String) {
+        val file = File(filesDir, "fingerprint_log.txt")
+        FileOutputStream(file, true).use { it.write("$data\n".toByteArray()) }
+    }
+
+    private fun registerNetworkCallback() {
+        val connectivityManager = getSystemService(ConnectivityManager::class.java)
+        val networkRequest = NetworkRequest.Builder().build()
+
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                showToast("Internet Connected ✅")
+                Log.d("ForegroundService", "Internet Connected ✅")
+            }
+
+            override fun onLost(network: Network) {
+                showToast("Internet Disconnected ❌")
+                Log.d("ForegroundService", "Internet Disconnected ❌")
+            }
+        }
+
+        connectivityManager.registerNetworkCallback(networkRequest, networkCallback!!)
+    }
+
+    private fun acquireWakeLock() {
+        val powerManager = getSystemService(PowerManager::class.java)
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FindMyPhone::Wakelock")
+        wakeLock.acquire()
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock.isHeld) wakeLock.release()
+    }
+
+    private fun showToast(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(this@ForegroundService, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(usbReceiver)
+        networkCallback?.let {
+            val connectivityManager = getSystemService(ConnectivityManager::class.java)
+            connectivityManager.unregisterNetworkCallback(it)
+        }
+        releaseWakeLock()
+        restartServiceWithAlarm()
+    }
+
+    private fun restartServiceWithAlarm() {
+        val alarmIntent = Intent(this, ForegroundService::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, PendingIntent.FLAG_UPDATE_CURRENT)
+
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.setExact(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 5000, pendingIntent)
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}

@@ -12,6 +12,17 @@ import android.location.Location
 import io.flutter.plugin.common.EventChannel
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import java.io.File
+import java.io.FileOutputStream
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.Network
+import android.net.NetworkRequest
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.widget.Toast
 
 class ForegroundService : Service() {
 
@@ -21,6 +32,8 @@ class ForegroundService : Service() {
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
     private var eventSink: EventChannel.EventSink? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var networkEventSink: EventChannel.EventSink? = null
 
     companion object {
         var instance: ForegroundService? = null
@@ -31,6 +44,8 @@ class ForegroundService : Service() {
         instance = this
         startForegroundServiceOnce()
         startLocationUpdates()
+        registerUsbReceiver()
+        registerNetworkCallback()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -103,20 +118,89 @@ class ForegroundService : Service() {
     }
     }
 
+     private fun registerUsbReceiver() {
+        val filter = IntentFilter(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+        registerReceiver(usbReceiver, filter)
+    }
+
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (UsbManager.ACTION_USB_DEVICE_ATTACHED == intent.action) {
+                val usbDevice = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+                usbDevice?.let { handleUsbDevice(it) }
+            }
+        }
+    }
+
+    private fun handleUsbDevice(device: UsbDevice) {
+        showToast("USB device detected")
+        saveFingerprintData("USB Device Connected: ${device.deviceName} at ${System.currentTimeMillis()}")
+        Log.d("ForegroundService", "USB device detected: ${device.deviceName}")
+    }
+
+    private fun saveFingerprintData(data: String) {
+        val file = File(filesDir, "fingerprint_log.txt")
+        FileOutputStream(file, true).use { it.write("$data\n".toByteArray()) }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         instance = null
         // Removing location updates when the service is destroyed
         fusedLocationClient.removeLocationUpdates(locationCallback)
+
+        networkCallback?.let {
+            val connectivityManager = getSystemService(ConnectivityManager::class.java)
+            connectivityManager.unregisterNetworkCallback(it)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
 
+    private fun showToast(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(this@ForegroundService, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun setEventSink(eventSink: EventChannel.EventSink?) {
         this.eventSink = eventSink
     }
+
+   private fun registerNetworkCallback() {
+    val connectivityManager = getSystemService(ConnectivityManager::class.java)
+    val networkRequest = NetworkRequest.Builder().build()
+
+    networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            networkEventSink?.success("Online")
+        }
+
+        override fun onLost(network: Network) {
+            networkEventSink?.success("Offline")
+        }
+    }
+
+    connectivityManager.registerNetworkCallback(networkRequest, networkCallback!!)
+    }
+
+    fun setNetworkEventSink(eventSink: EventChannel.EventSink?) {
+        networkEventSink = eventSink
+    }
+
+  fun getCurrentNetworkStatus(): String {
+    val connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val activeNetwork = connectivityManager.activeNetwork
+    val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+
+    return when {
+        networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
+        networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile Data"
+        else -> "No Network Connection"
+    }
+}
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         Log.w("ForegroundService", "Service was killed. Restarting in 3 seconds...")

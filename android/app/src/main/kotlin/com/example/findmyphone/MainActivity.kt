@@ -19,17 +19,19 @@ import android.os.BatteryManager
 import android.os.Environment
 import android.os.StatFs
 import android.telephony.TelephonyManager
-
-
 import android.os.Bundle
+import android.net.NetworkCapabilities
+import android.net.ConnectivityManager
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.findmyphone/service"
     private val LOCATION_CHANNEL = "com.example.findmyphone/location"
-    private val DEVICE_CHANNEL = "com.example.findmyphone/device" 
+    private val DEVICE_CHANNEL = "com.example.findmyphone/device"  
     private val REQUEST_CODE = 1001
     private var pendingResult: MethodChannel.Result? = null
     private var requestedPermission: String? = null
+    private val NETWORK_METHOD_CHANNEL = "com.example.findmyphone/network"
+    //private val NETWORK_EVENT_CHANNEL = "com.example.findmyphone/network"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,7 +86,6 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
 
         // EventChannel untuk mengirim live location ke Flutter
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, LOCATION_CHANNEL).setStreamHandler(
@@ -108,8 +109,32 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
-    }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NETWORK_METHOD_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getNetworkStatus" -> {
+                    val status = ForegroundService.instance?.getCurrentNetworkStatus() ?: "unknown"
+                    Log.d("MainActivity", "`${status}`")
+                    result.success(status)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Stream untuk status jaringan
+        //EventChannel(flutterEngine.dartExecutor.binaryMessenger, NETWORK_EVENT_CHANNEL).setStreamHandler(
+         //   object : EventChannel.StreamHandler {
+          //      override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+            //        ForegroundService.instance?.setNetworkEventSink(events)
+              //  }
+
+                //override fun onCancel(arguments: Any?) {
+                  //  ForegroundService.instance?.setNetworkEventSink(null)
+                //}
+            //}   
+       // )
+}
+
 
     private fun getMissingPermissions(): List<String> {
         val permissions = mapOf(

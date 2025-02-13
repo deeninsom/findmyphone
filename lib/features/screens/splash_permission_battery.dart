@@ -5,26 +5,41 @@ class SplashPermissionBattery extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
+      body: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.battery_alert, size: 100, color: Colors.blue),
-            SizedBox(height: 20),
-            Text(
-              "Allow Battery Optimization",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "To ensure the app runs properly in the background, please allow battery optimization.",
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16),
+            Expanded( // Bagian konten akan menyesuaikan
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(Icons.battery_alert, size: 100, color: Colors.blue),
+                    SizedBox(height: 20),
+                    Text(
+                      "Allow Battery Optimization",
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        "To ensure the app runs properly in the background, please allow battery optimization.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            ElevatedButton(
-              onPressed: () async {
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0), // Jarak dari bawah & samping
+              child: SizedBox(
+                width: double.infinity, // Membuat tombol full width
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
                 debugPrint("Requesting battery optimization...");
                 const platform = MethodChannel('com.example.findmyphone/service');
                 try {
@@ -35,9 +50,19 @@ class SplashPermissionBattery extends StatelessWidget {
                   }
                 } on PlatformException catch (e) {
                   debugPrint("Failed to request battery optimization: ${e.message}");
+                  Navigator.pop(context, true);
                 }
               },
-              child: Text("Enable Battery Optimization"),
+                  style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade800,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 5,
+                          ),
+                  child: Text("Enable Battery Permission", style: TextStyle(fontSize: 18, color: Colors.white)),
+                ),
+              ),
             ),
           ],
         ),

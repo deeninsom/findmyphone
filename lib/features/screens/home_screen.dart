@@ -8,20 +8,28 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const platform = MethodChannel('com.example.findmyphone/device');
+  static const MethodChannel platform =
+      MethodChannel('com.example.findmyphone/device');
+  static const MethodChannel _platformNetwork =
+      MethodChannel('com.example.findmyphone/network');
+  // static const EventChannel _eventNetwork =
+  //     EventChannel('com.example.findmyphone/network');
 
   String _deviceModel = "Loading...";
   String _deviceBattery = "Loading...";
   String _deviceChip = "Loading...";
-  String _wifiStatus = "Loading..."; // Wi-Fi status instead of storage/IMEI
+  String _wifiStatus = "Loading..."; // Wi-Fi status
+  String _networkStatus = "Checking..."; // Added connection status
 
   @override
   void initState() {
     super.initState();
     _getDeviceInfo();
+    _getNetworkStatus();
+    // _listenNetworkStatus(); // Listen for real-time network updates
   }
 
-  // Fetch device info including Wi-Fi status using MethodChannel
+  /// Fetch device info including Wi-Fi status using MethodChannel
   Future<void> _getDeviceInfo() async {
     try {
       final Map<String, dynamic> deviceInfo = Map<String, dynamic>.from(
@@ -37,6 +45,29 @@ class _HomeScreenState extends State<HomeScreen> {
       print("Failed to get device info: '${e.message}'.");
     }
   }
+
+  /// Get initial network status
+  Future<void> _getNetworkStatus() async {
+    try {
+      final String status = await _platformNetwork.invokeMethod('getNetworkStatus'); // Correct method name
+      setState(() {
+        _networkStatus = status.toString();
+      });
+    } on PlatformException catch (e) {
+      print("Failed to get network status: '${e.message}'.");
+    }
+  }
+
+  /// Listen for real-time network updates using EventChannel
+  // void _listenNetworkStatus() {
+  //   _eventNetwork.receiveBroadcastStream().listen((status) {
+  //     setState(() {
+  //       _networkStatus = status;
+  //     });
+  //   }, onError: (error) {
+  //     print("Network status error: $error");
+  //   });
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -109,8 +140,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   _infoRow(Icons.smartphone, "Model: $_deviceModel"),
                   _infoRow(Icons.battery_full, "Battery: $_deviceBattery"),
                   _infoRow(Icons.memory, "Chip: $_deviceChip"),
-                  _infoRow(Icons.wifi,
-                      "Wi-Fi: $_wifiStatus"), // Wi-Fi info instead of storage
+                  _infoRow(Icons.wifi, "Wi-Fi: $_wifiStatus"),
+                  _infoRow(Icons.network_check, "Network: $_networkStatus"), // Added network info
                 ],
               ),
             ),

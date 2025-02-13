@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
 class LocationScreen extends StatefulWidget {
   const LocationScreen({super.key});
@@ -19,7 +20,23 @@ class _LocationScreenState extends State<LocationScreen> {
   @override
   void initState() {
     super.initState();
-    _startListeningLocation(); // Start listening for location updates
+    _getInitialLocation(); // Get initial location before listening for updates
+    _startListeningLocation(); // Start listening for real-time location updates
+  }
+
+  /// Get the initial location using Geolocator
+  Future<void> _getInitialLocation() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        _isLoading = false;
+      });
+    } catch (e) {
+      print("Error getting initial location: $e");
+    }
   }
 
   /// Listen for real-time location updates from the background service
@@ -31,8 +48,6 @@ class _LocationScreenState extends State<LocationScreen> {
           event['longitude'] != null) {
         setState(() {
           _currentPosition = LatLng(event['latitude'], event['longitude']);
-          _isLoading =
-              false; // After receiving the first location update, set loading to false
         });
       }
     }, onError: (error) {
@@ -49,8 +64,7 @@ class _LocationScreenState extends State<LocationScreen> {
               ? const Center(child: CircularProgressIndicator())
               : FlutterMap(
                   options: MapOptions(
-                    initialCenter:
-                        _currentPosition!, // Use center instead of initialCenter
+                    initialCenter: _currentPosition!,
                     initialZoom: 15.0,
                   ),
                   children: [
@@ -77,7 +91,7 @@ class _LocationScreenState extends State<LocationScreen> {
                       circles: [
                         CircleMarker(
                           point: _currentPosition!,
-                          radius: 50.0, // Radius dalam meter
+                          radius: 50.0,
                           useRadiusInMeter: true,
                           color: Colors.blue.withOpacity(0.3),
                           borderColor: Colors.blue,
@@ -122,7 +136,7 @@ class _LocationScreenState extends State<LocationScreen> {
                   ),
             const SizedBox(height: 10),
             ElevatedButton.icon(
-              onPressed: null, // No need for _getCurrentLocation anymore
+              onPressed: null,
               icon: const Icon(Icons.my_location),
               label: const Text("Location updates are received automatically."),
               style: ElevatedButton.styleFrom(

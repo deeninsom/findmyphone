@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'dart:async';
 
 class LocationScreen extends StatefulWidget {
   const LocationScreen({super.key});
@@ -16,6 +17,9 @@ class _LocationScreenState extends State<LocationScreen> {
 
   LatLng? _currentPosition;
   bool _isLoading = true;
+  final LatLng _destination = LatLng(-7.364879432981343, 112.72897518124178);  // Example destination coordinates
+
+  late StreamSubscription _locationSubscription;  // To hold the subscription
 
   @override
   void initState() {
@@ -23,6 +27,13 @@ class _LocationScreenState extends State<LocationScreen> {
 
     _getInitialLocation(); // Get initial location before listening for updates
     _startListeningLocation(); // Start listening for real-time location updates
+  }
+
+  @override
+  void dispose() {
+    // Cancel the subscription when the widget is disposed
+    _locationSubscription.cancel();
+    super.dispose();
   }
 
   /// Get the initial location using MethodChannel
@@ -36,18 +47,22 @@ class _LocationScreenState extends State<LocationScreen> {
 
   /// Listen for real-time location updates from the background service
   void _startListeningLocation() {
-    _eventLocationChannel.receiveBroadcastStream().listen((event) {
-      print("Received location: $event");
-      final double latitude = event['latitude'];
-      final double longitude = event['longitude'];
-      print("Live Location: Latitude: $latitude, Longitude: $longitude");
-      setState(() {
-        _currentPosition = LatLng(latitude, longitude);
-        _isLoading = false;
-      });
-    }, onError: (error) {
-      print("Error receiving location updates: $error");
-    });
+    _locationSubscription = _eventLocationChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (!mounted) return;  // Ensure widget is still mounted
+        print("Received location: $event");
+        final double latitude = event['latitude'];
+        final double longitude = event['longitude'];
+        print("Live Location: Latitude: $latitude, Longitude: $longitude");
+        setState(() {
+          _currentPosition = LatLng(latitude, longitude);
+          _isLoading = false;
+        });
+      },
+      onError: (error) {
+        print("Error receiving location updates: $error");
+      },
+    );
   }
 
   @override
@@ -90,6 +105,32 @@ class _LocationScreenState extends State<LocationScreen> {
                           useRadiusInMeter: true,
                           color: Colors.blue.withOpacity(0.3),
                           borderColor: Colors.blue,
+                          borderStrokeWidth: 2,
+                        ),
+                      ],
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          width: 40.0,
+                          height: 40.0,
+                          point: _destination,
+                          child: Icon(
+                            Icons.my_location,
+                            color: Colors.green,
+                            size: 30.0,
+                          ),
+                        ),
+                      ],
+                    ),
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: _destination,
+                          radius: 50.0,
+                          useRadiusInMeter: true,
+                          color: Colors.green.withOpacity(0.3),
+                          borderColor: Colors.green,
                           borderStrokeWidth: 2,
                         ),
                       ],

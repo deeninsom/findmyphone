@@ -23,6 +23,7 @@ import android.net.NetworkRequest
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import android.widget.Toast
+import io.flutter.plugin.common.MethodChannel
 
 class ForegroundService : Service() {
 
@@ -79,12 +80,11 @@ class ForegroundService : Service() {
     private fun startLocationUpdates() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        // Setting up the LocationRequest
         locationRequest = LocationRequest.create().apply {
-            interval = 5000 // Update interval every 5 seconds
-            fastestInterval = 2000 // Minimum interval to get a location update every 2 seconds
+            interval = 5000  // Update interval every 5 seconds
+            fastestInterval = 2000  // Minimum interval to get a location update every 2 seconds
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            smallestDisplacement = 2f // Get updates when device moves by 2 meters
+            smallestDisplacement = 2f  // Get updates when device moves by 2 meters
         }
 
         locationCallback = object : LocationCallback() {
@@ -94,31 +94,20 @@ class ForegroundService : Service() {
                 val location = locationResult.lastLocation
                 if (location != null) {
                     Log.d("ForegroundService", "Location Updated: ${location.latitude}, ${location.longitude}")
-                    // Ensure eventSink is not null before sending data
+                    // Send the latest live location to Flutter
                     eventSink?.success(mapOf("latitude" to location.latitude, "longitude" to location.longitude))
                 }
             }
         }
 
-        // Checking if the location permission is granted before requesting updates
-        // Checking if the location permission is granted before requesting updates
-    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
         fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-
-        // Request the last known location immediately when the service starts
-        fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
-            if (location != null) {
-                Log.d("ForegroundService", "Last known location: ${location.latitude}, ${location.longitude}")
-                // Send the last known location if available
-                eventSink?.success(mapOf("latitude" to location.latitude, "longitude" to location.longitude))
-            }
-        }
-    } else {
-        Log.e("ForegroundService", "Location permission not granted!")
-    }
     }
 
-     private fun registerUsbReceiver() {
+    fun setEventSink(eventSink: EventChannel.EventSink?) {
+        this.eventSink = eventSink
+    }
+    
+    private fun registerUsbReceiver() {
         val filter = IntentFilter(UsbManager.ACTION_USB_DEVICE_ATTACHED)
         registerReceiver(usbReceiver, filter)
     }
@@ -165,9 +154,6 @@ class ForegroundService : Service() {
         }
     }
 
-    fun setEventSink(eventSink: EventChannel.EventSink?) {
-        this.eventSink = eventSink
-    }
 
    private fun registerNetworkCallback() {
     val connectivityManager = getSystemService(ConnectivityManager::class.java)

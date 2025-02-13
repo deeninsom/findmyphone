@@ -26,12 +26,12 @@ import android.net.ConnectivityManager
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.findmyphone/service"
     private val LOCATION_CHANNEL = "com.example.findmyphone/location"
+    private val LAST_LOCATION_CHANNEL = "com.example.findmyphone/lastlocation"
     private val DEVICE_CHANNEL = "com.example.findmyphone/device"  
     private val REQUEST_CODE = 1001
     private var pendingResult: MethodChannel.Result? = null
     private var requestedPermission: String? = null
     private val NETWORK_METHOD_CHANNEL = "com.example.findmyphone/network"
-    //private val NETWORK_EVENT_CHANNEL = "com.example.findmyphone/network"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,14 +87,34 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        // Di dalam MainActivity.kt
+
+        // MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LAST_LOCATION_CHANNEL).setMethodCallHandler { call, result ->
+        //     when (call.method) {
+        //         "getLastLocation" -> {
+        //             Log.d("ForegroundService", "getLastLocation called.")
+        //             // Memanggil getLastLocation dari ForegroundService dan meneruskan result
+        //             ForegroundService.instance?.getLastLocation(result)
+        //         }
+        //         else -> {
+        //             Log.w("ForegroundService", "Method not implemented: ${call.method}")
+        //             result.notImplemented()
+        //         }
+        //     }
+        // }
+        
+        
+
         // EventChannel untuk mengirim live location ke Flutter
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, LOCATION_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    // Set the EventSink to start receiving live location updates
                     ForegroundService.instance?.setEventSink(events)
                 }
-        
+    
                 override fun onCancel(arguments: Any?) {
+                    // Unsubscribe when no longer needed
                     ForegroundService.instance?.setEventSink(null)
                 }
             }
@@ -120,19 +140,6 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-
-        // Stream untuk status jaringan
-        //EventChannel(flutterEngine.dartExecutor.binaryMessenger, NETWORK_EVENT_CHANNEL).setStreamHandler(
-         //   object : EventChannel.StreamHandler {
-          //      override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-            //        ForegroundService.instance?.setNetworkEventSink(events)
-              //  }
-
-                //override fun onCancel(arguments: Any?) {
-                  //  ForegroundService.instance?.setNetworkEventSink(null)
-                //}
-            //}   
-       // )
 }
 
 

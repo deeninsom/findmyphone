@@ -12,44 +12,39 @@ class LocationScreen extends StatefulWidget {
 }
 
 class _LocationScreenState extends State<LocationScreen> {
-  static const EventChannel _locationChannel =
-      EventChannel('com.example.findmyphone/location');
+  static const EventChannel _eventLocationChannel = EventChannel('com.example.findmyphone/location');
+
   LatLng? _currentPosition;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+
     _getInitialLocation(); // Get initial location before listening for updates
     _startListeningLocation(); // Start listening for real-time location updates
   }
 
-  /// Get the initial location using Geolocator
+  /// Get the initial location using MethodChannel
   Future<void> _getInitialLocation() async {
-    try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      setState(() {
-        _currentPosition = LatLng(position.latitude, position.longitude);
-        _isLoading = false;
-      });
-    } catch (e) {
-      print("Error getting initial location: $e");
-    }
+    var position = await Geolocator.getCurrentPosition();
+    setState(() {
+      _currentPosition = LatLng(position.latitude, position.longitude);
+      _isLoading = false;
+    });
   }
 
   /// Listen for real-time location updates from the background service
   void _startListeningLocation() {
-    _locationChannel.receiveBroadcastStream().listen((event) {
-      print("Received location: $event"); // Check what data you're receiving
-      if (event != null &&
-          event['latitude'] != null &&
-          event['longitude'] != null) {
-        setState(() {
-          _currentPosition = LatLng(event['latitude'], event['longitude']);
-        });
-      }
+    _eventLocationChannel.receiveBroadcastStream().listen((event) {
+      print("Received location: $event");
+      final double latitude = event['latitude'];
+      final double longitude = event['longitude'];
+      print("Live Location: Latitude: $latitude, Longitude: $longitude");
+      setState(() {
+        _currentPosition = LatLng(latitude, longitude);
+        _isLoading = false;
+      });
     }, onError: (error) {
       print("Error receiving location updates: $error");
     });
@@ -60,7 +55,7 @@ class _LocationScreenState extends State<LocationScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          _currentPosition == null
+          _isLoading
               ? const Center(child: CircularProgressIndicator())
               : FlutterMap(
                   options: MapOptions(

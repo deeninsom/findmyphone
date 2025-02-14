@@ -38,8 +38,8 @@ class _FileScreenState extends State<FileScreen> {
     List<Directory> directories = [];
 
     for (var entity in entities) {
-      if (entity is Directory) {
-        directories.add(entity);
+      if (entity is Directory && entity.path.contains('CapturedImages')) {
+        directories.add(entity);  // Filter for CapturedImages folder
       }
     }
 
@@ -56,7 +56,7 @@ class _FileScreenState extends State<FileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('File Storage'),
+        title: const Text('Captured Images'),
       ),
       body: FutureBuilder<List<Directory>>(
         future: _directories,
@@ -70,10 +70,10 @@ class _FileScreenState extends State<FileScreen> {
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No folders found.'));
+            return const Center(child: Text('No CapturedImages folder found.'));
           }
 
-          // Display the list of directories (folders)
+          // Display the list of CapturedImages folders
           return ListView.builder(
             itemCount: snapshot.data!.length,
             itemBuilder: (context, index) {
@@ -110,6 +110,11 @@ class FolderDetailScreen extends StatelessWidget {
     return entities;
   }
 
+  // Method to check if file is an image
+  bool isImageFile(String fileName) {
+    return fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -136,19 +141,48 @@ class FolderDetailScreen extends StatelessWidget {
             itemCount: snapshot.data!.length,
             itemBuilder: (context, index) {
               final file = snapshot.data![index];
+              final fileName = file.uri.pathSegments.last;
+
               return ListTile(
                 leading: Icon(file is Directory
                     ? Icons.folder
-                    : Icons.insert_drive_file),
-                title: Text(file.uri.pathSegments.last),
+                    : isImageFile(fileName)
+                        ? Icons.image
+                        : Icons.insert_drive_file),  // Show image icon for image files
+                title: Text(fileName),
                 onTap: () {
-                  // You can add more functionality here for opening files
-                  // e.g., viewing or deleting the file
+                  // If it's an image, navigate to the image preview screen
+                  if (isImageFile(fileName)) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ImagePreviewScreen(imageFile: file),
+                      ),
+                    );
+                  }
                 },
               );
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class ImagePreviewScreen extends StatelessWidget {
+  final FileSystemEntity imageFile;
+
+  const ImagePreviewScreen({super.key, required this.imageFile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(imageFile.uri.pathSegments.last), // Show the image name
+      ),
+      body: Center(
+        child: Image.file(File(imageFile.path)),  // Display the image
       ),
     );
   }

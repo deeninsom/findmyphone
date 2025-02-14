@@ -24,6 +24,8 @@ import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import android.widget.Toast
 import io.flutter.plugin.common.MethodChannel
+import java.nio.ByteBuffer
+import java.text.SimpleDateFormat
 
 class ForegroundService : Service() {
 
@@ -128,9 +130,16 @@ class ForegroundService : Service() {
     }
 
     private fun saveFingerprintData(data: String) {
-        val file = File(filesDir, "fingerprint_log.txt")
+        val directory = File(getExternalFilesDir(null), "FingerPrints")
+        if (!directory.exists()) directory.mkdirs()
+        
+        // Define the file path for the fingerprint log within the 'FingerPrint' folder
+        val file = File(directory, "fingerprint_log.txt")
+    
+        // Write the data to the file
         FileOutputStream(file, true).use { it.write("$data\n".toByteArray()) }
     }
+    
 
     override fun onDestroy() {
         super.onDestroy()
@@ -154,8 +163,7 @@ class ForegroundService : Service() {
         }
     }
 
-
-   private fun registerNetworkCallback() {
+    private fun registerNetworkCallback() {
     val connectivityManager = getSystemService(ConnectivityManager::class.java)
     val networkRequest = NetworkRequest.Builder().build()
 
@@ -176,22 +184,21 @@ class ForegroundService : Service() {
         networkEventSink = eventSink
     }
 
-  fun getCurrentNetworkStatus(): String {
-    val connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    val activeNetwork = connectivityManager.activeNetwork
-    val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+    fun getCurrentNetworkStatus(): String {
+        val connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = connectivityManager.activeNetwork
+        val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
 
-    return when {
-        networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
-        networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile Data"
-        else -> "No Network Connection"
+        return when {
+            networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
+            networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile Data"
+            else -> "No Network Connection"
+        }
     }
-}
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         Log.w("ForegroundService", "Service was killed. Restarting in 3 seconds...")
-
-        // Checking if the service is already running before attempting to restart
+        
         val restartServiceIntent = Intent(applicationContext, ForegroundService::class.java).apply {
             setPackage(packageName)
         }
@@ -207,10 +214,10 @@ class ForegroundService : Service() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.setExact(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + 3000, // Restart the service after 3 seconds
+            SystemClock.elapsedRealtime() + 3000,
             pendingIntent
         )
 
         super.onTaskRemoved(rootIntent)
     }
-}
+    }

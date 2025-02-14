@@ -22,6 +22,9 @@ import android.telephony.TelephonyManager
 import android.os.Bundle
 import android.net.NetworkCapabilities
 import android.net.ConnectivityManager
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.findmyphone/service"
@@ -29,6 +32,7 @@ class MainActivity : FlutterActivity() {
     private val LAST_LOCATION_CHANNEL = "com.example.findmyphone/lastlocation"
     private val DEVICE_CHANNEL = "com.example.findmyphone/device"  
     private val REQUEST_CODE = 1001
+    private val REQUEST_CODE_DEVICE_ADMIN = 1002
     private var pendingResult: MethodChannel.Result? = null
     private var requestedPermission: String? = null
     private val NETWORK_METHOD_CHANNEL = "com.example.findmyphone/network"
@@ -82,6 +86,12 @@ class MainActivity : FlutterActivity() {
                 }
                 "isIgnoringBatteryOptimizations" -> {
                     result.success(isIgnoringBatteryOptimizations())
+                }
+                "requestAdminPermission" -> {
+                    requestDeviceAdmin(result)
+                }
+                "isIgnoringAdminPermission" -> {
+                    result.success(isDeviceAdminActive())
                 }
                 else -> result.notImplemented()
             }
@@ -231,7 +241,8 @@ class MainActivity : FlutterActivity() {
                 result.success(true)
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error requesting battery optimization", e)
-                result.error("ERROR", "Failed to request battery optimization", null)
+                // result.error("ERROR", "Failed to request battery optimization", null)
+                result.success(true)
             }
         } else {
             Log.d("MainActivity", "Battery optimization not needed for Android < 6.0")
@@ -239,44 +250,65 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // New method to fetch device information
-    // Remove the getStorageInfo() and getImei() methods
+    private fun getDeviceInfo(): Map<String, Any> {
+        val deviceInfo = mutableMapOf<String, Any>()
+        
+        // Model and Manufacturer
+        deviceInfo["model"] = Build.MODEL
+        deviceInfo["manufacturer"] = Build.MANUFACTURER
+        
+        // Battery level
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        deviceInfo["batteryLevel"] = batteryLevel
+        
+        // Chipset (CPU Architecture)
+        val cpuArch = Build.SUPPORTED_ABIS[0]
+        deviceInfo["cpuArchitecture"] = cpuArch
+        
+        // Wi-Fi Status
+        val wifiStatus = getWifiStatus()
+        deviceInfo["wifiStatus"] = wifiStatus
 
-private fun getDeviceInfo(): Map<String, Any> {
-    val deviceInfo = mutableMapOf<String, Any>()
-    
-    // Model and Manufacturer
-    deviceInfo["model"] = Build.MODEL
-    deviceInfo["manufacturer"] = Build.MANUFACTURER
-    
-    // Battery level
-    val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-    val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-    deviceInfo["batteryLevel"] = batteryLevel
-    
-    // Chipset (CPU Architecture)
-    val cpuArch = Build.SUPPORTED_ABIS[0]
-    deviceInfo["cpuArchitecture"] = cpuArch
-    
-    // Wi-Fi Status
-    val wifiStatus = getWifiStatus()
-    deviceInfo["wifiStatus"] = wifiStatus
-
-    return deviceInfo
-}
-
-// Method to fetch Wi-Fi status
-private fun getWifiStatus(): String {
-    val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
-    val connectionInfo = wifiManager.connectionInfo
-
-    return if (connectionInfo.networkId == -1) {
-        "No Wi-Fi Connection"
-    } else {
-        val ssid = connectionInfo.ssid.replace("\"", "")
-        "$ssid"
+        return deviceInfo
     }
-}
 
+    // Method to fetch Wi-Fi status
+    private fun getWifiStatus(): String {
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        val connectionInfo = wifiManager.connectionInfo
+
+        return if (connectionInfo.networkId == -1) {
+            "No Wi-Fi Connection"
+        } else {
+            val ssid = connectionInfo.ssid.replace("\"", "")
+            "$ssid"
+        }
+    }
+
+    private fun requestDeviceAdmin(result: MethodChannel.Result) {
+        val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val componentName = ComponentName(this, MyDevicesAdminReceiver::class.java)
     
+        // Check if the device admin is already active
+        if (!devicePolicyManager.isAdminActive(componentName)) {
+            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
+            }
+            
+            startActivityForResult(intent, REQUEST_CODE_DEVICE_ADMIN)
+            result.success(true)
+        } else {
+            result.success(true)// Device admin is already active
+        }
+    }
+    
+
+    // ✅ Periksa apakah Device Admin aktif
+    private fun isDeviceAdminActive(): Boolean {
+        val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val componentName = ComponentName(this, MyDevicesAdminReceiver::class.java)
+        return devicePolicyManager.isAdminActive(componentName)
+    }
+        
 }

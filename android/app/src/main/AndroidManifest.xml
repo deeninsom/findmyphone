@@ -37,7 +37,7 @@
     </activity>
 
     <!-- Camera service Declaration -->
-    <activity android:name=".CameraCaptureActivity" android:turnScreenOn="true" android:showWhenLocked="true" android:exported="false">
+    <activity android:name=".CameraCaptureActivity" android:turnScreenOn="true" android:showWhenLocked="true" android:exported="false" android:foregroundServiceType="camera">
     </activity>
 
     <!-- Foreground service Declaration -->

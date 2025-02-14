@@ -106,7 +106,7 @@ class MainActivity : FlutterActivity() {
     private fun requestDeviceAdmin() {
         val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
             putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, ComponentName(this@MainActivity, MyDevicesAdminReceiver::class.java))
-            putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "This app requires device admin permission to function properly.")
+            //putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "This app requires device admin permission to function properly.")
         }
         startActivityForResult(intent, REQUEST_CODE_DEVICE_ADMIN)
     }

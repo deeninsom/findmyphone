@@ -24,7 +24,7 @@ import android.net.NetworkCapabilities
 import android.net.ConnectivityManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
-
+import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.findmyphone/service"
@@ -36,6 +36,7 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var requestedPermission: String? = null
     private val NETWORK_METHOD_CHANNEL = "com.example.findmyphone/network"
+    private val FCM_CHANNEL = "com.example.findmyphone/fcm"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,24 +98,6 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Di dalam MainActivity.kt
-
-        // MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LAST_LOCATION_CHANNEL).setMethodCallHandler { call, result ->
-        //     when (call.method) {
-        //         "getLastLocation" -> {
-        //             Log.d("ForegroundService", "getLastLocation called.")
-        //             // Memanggil getLastLocation dari ForegroundService dan meneruskan result
-        //             ForegroundService.instance?.getLastLocation(result)
-        //         }
-        //         else -> {
-        //             Log.w("ForegroundService", "Method not implemented: ${call.method}")
-        //             result.notImplemented()
-        //         }
-        //     }
-        // }
-        
-        
-
         // EventChannel untuk mengirim live location ke Flutter
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, LOCATION_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
@@ -150,8 +133,40 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-}
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FCM_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getFCMToken" -> getOrGenerateFCMToken(result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+
+    private fun getOrGenerateFCMToken(result: MethodChannel.Result) {
+        val sharedPreferences = getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+        val savedToken = sharedPreferences.getString("fcm_token", null)
+
+        if (savedToken != null) {
+            Log.d("FCM", "Using existing FCM token: $savedToken")
+            result.success(savedToken)
+            return
+        }
+
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w("FCM", "Fetching FCM token failed", task.exception)
+                result.error("FCM_ERROR", "Failed to get FCM token", null)
+                return@addOnCompleteListener
+            }
+
+            val token = task.result
+            Log.d("FCM", "Generated new FCM token: $token")
+
+            sharedPreferences.edit().putString("fcm_token", token).apply()
+            result.success(token)
+        }
+    }
 
     private fun getMissingPermissions(): List<String> {
         val permissions = mapOf(

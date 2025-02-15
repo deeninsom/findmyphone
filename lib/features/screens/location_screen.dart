@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:async';
+import 'main_screen.dart';
 
 class LocationScreen extends StatefulWidget {
   const LocationScreen({super.key});
@@ -172,7 +173,15 @@ class _LocationScreenState extends State<LocationScreen> {
                   ),
             const SizedBox(height: 10),
             ElevatedButton.icon(
-              onPressed: null,
+              // onPressed: null,
+              onPressed: () => {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder : (context) => MainScreen() 
+                  )
+                )
+              },
               icon: const Icon(Icons.my_location),
               label: const Text("Location updates are received automatically."),
               style: ElevatedButton.styleFrom(

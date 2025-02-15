@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "536580473527",
+    "project_id": "findmyphone-3b019",
+    "storage_bucket": "findmyphone-3b019.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:536580473527:android:795bf841d93993b903c332",
+        "android_client_info": {
+          "package_name": "com.example.findmyphone"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXi_-PChI55URh6LcdpvnQaUU691NWJtU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

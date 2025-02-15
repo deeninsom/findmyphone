@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'features/screens/main_screen.dart';
+import 'features/screens/login_screen.dart';
 import 'features/screens/splash_permission_camera.dart';
 import 'features/screens/splash_permission_location.dart';
 import 'features/screens/splash_permission_storage.dart';
 import 'features/screens/splash_permission_battery.dart';
 import 'features/screens/splash_permission_admin.dart';
-import 'features/screens/login_screen.dart';
 
 void main() {
   runApp(MyApp());
@@ -30,30 +32,42 @@ class PermissionHandlerScreen extends StatefulWidget {
 class _PermissionHandlerScreenState extends State<PermissionHandlerScreen> {
   static const platform = MethodChannel('com.example.findmyphone/service');
   List<String> pendingPermissions = [];
-  bool batteryOptimized = true; // Default dianggap sudah diizinkan
+  bool batteryOptimized = true;
   bool adminPermission = true;
+  String? jwtToken; // Variabel untuk menyimpan token JWT
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkPermissions();
+      _checkTokenAndPermissions();
     });
+  }
+
+  /// Cek apakah ada token JWT yang tersimpan
+  Future<void> _checkTokenAndPermissions() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    jwtToken = prefs.getString("jwt_token");
+
+    if (jwtToken != null && jwtToken!.isNotEmpty) {
+      debugPrint("JWT Token found: Navigating to MainScreen");
+      _navigateToMain();
+    } else {
+      debugPrint("No JWT Token found. Checking permissions...");
+      _checkPermissions();
+    }
   }
 
   /// Mengecek daftar izin yang belum diberikan dan status optimasi baterai
   Future<void> _checkPermissions() async {
     try {
-      // Cek izin normal (kamera, lokasi, penyimpanan)
       final List<dynamic> permissions =
           await platform.invokeMethod('checkPermissions');
       pendingPermissions = List<String>.from(permissions);
 
-      // Cek status optimasi baterai
       batteryOptimized =
           await platform.invokeMethod('isIgnoringBatteryOptimizations');
 
-      // Cek apakah izin admin perangkat diberikan
       adminPermission =
           await platform.invokeMethod('isIgnoringAdminPermission');
 
@@ -61,7 +75,6 @@ class _PermissionHandlerScreenState extends State<PermissionHandlerScreen> {
       debugPrint("Battery Optimized: $batteryOptimized");
       debugPrint("Is Device Admin Active: $adminPermission");
 
-      // Panggil metode untuk menavigasi ke izin atau login
       _navigateToNextPermissionScreen();
     } on PlatformException catch (e) {
       debugPrint("Failed to check permissions: '${e.message}'.");
@@ -73,14 +86,12 @@ class _PermissionHandlerScreenState extends State<PermissionHandlerScreen> {
   void _navigateToNextPermissionScreen() async {
     if (!mounted) return;
 
-    // Cek apakah semua izin sudah diberikan dan optimasi baterai sudah diizinkan
     if (pendingPermissions.isEmpty && batteryOptimized && adminPermission) {
-      debugPrint("All permissions granted. Navigating to login.");
-      _navigateToLogin();
+      debugPrint("All permissions granted. Navigating to login or main.");
+      jwtToken != null ? _navigateToMain() : _navigateToLogin();
       return;
     }
 
-    // Jika ada izin yang tertunda, tangani satu per satu
     if (pendingPermissions.isNotEmpty) {
       String permission = pendingPermissions.removeAt(0);
       debugPrint("Navigating to permission screen for: $permission");
@@ -101,46 +112,32 @@ class _PermissionHandlerScreenState extends State<PermissionHandlerScreen> {
           return;
       }
 
-      // Jika optimasi baterai belum diizinkan, navigasi ke layar optimasi baterai
       if (!batteryOptimized) {
         debugPrint("Navigating to battery optimization screen.");
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => SplashPermissionBattery()),
         );
-
-        // Periksa izin setelah kembali dari layar optimasi baterai
-        if (mounted) {
-          _checkPermissions(); // Recheck after navigating to the battery screen
-        }
+        if (mounted) _checkPermissions();
         return;
       }
 
-      // Jika izin admin belum diberikan, navigasi ke layar izin admin
       if (!adminPermission) {
-        debugPrint("Navigating to admin optimization screen.");
+        debugPrint("Navigating to admin permission screen.");
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => SplashPermissionAdmin()),
         );
-
-        // Periksa izin setelah kembali dari layar admin
-        if (mounted) {
-          _checkPermissions(); // Recheck after navigating to the admin screen
-        }
+        if (mounted) _checkPermissions();
         return;
       }
 
-      // Jika sudah semua izin diberikan, lanjutkan ke layar izin yang diminta
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => splashScreen),
       );
 
-      // Setelah kembali, periksa izin kembali
-      if (mounted) {
-        _checkPermissions(); // Recheck permissions after handling this one
-      }
+      if (mounted) _checkPermissions();
     }
   }
 
@@ -155,10 +152,21 @@ class _PermissionHandlerScreenState extends State<PermissionHandlerScreen> {
     );
   }
 
+  void _navigateToMain() {
+    if (!mounted) return;
+
+    debugPrint("Navigating to Main Screen");
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => MainScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(child: CircularProgressIndicator()), // Menampilkan loading spinner sementara
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }

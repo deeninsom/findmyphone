@@ -47,6 +47,13 @@
       </intent-filter>
     </service>
 
+    <!-- Firebase service Declaration -->
+    <service android:name=".MyFirebaseMessagingService" android:enabled="true" android:exported="false" >
+      <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+      </intent-filter>
+    </service>
+
     <!-- Device Admin Receiver Declaration -->
     <receiver android:name=".MyDevicesAdminReceiver" android:label="Device Admin Receiver" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN">
       <intent-filter>

@@ -68,7 +68,7 @@ class CameraCaptureActivity : Activity() {
             if (frontCameraId != null) {
                 camera = Camera.open(frontCameraId)
                 val parameters = camera?.parameters
-                parameters?.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO) // Fokus otomatis
+                //parameters?.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO) // Fokus otomatis
                 camera?.parameters = parameters
 
                 // Mulai preview kamera (walaupun tidak akan ditampilkan di UI)
@@ -120,6 +120,8 @@ class CameraCaptureActivity : Activity() {
 
         return try {
             FileOutputStream(imageFile).use { it.write(imageData) }
+            camera?.release()
+            camera = null
             imageFile
         } catch (e: Exception) {
             Log.e("CameraCaptureActivity", "Error saving image: ${e.message}")
@@ -127,11 +129,6 @@ class CameraCaptureActivity : Activity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        camera?.release() // Lepaskan kamera saat activity dihancurkan
-        camera = null
-    }
 }
 
 

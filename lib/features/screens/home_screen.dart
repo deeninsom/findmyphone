@@ -98,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Fetch devices from API
   Future<void> _fetchDevices() async {
-    const String apiUrl = 'http://192.168.43.118:8080/api/v1/users'; 
+    const String apiUrl = 'http://192.168.60.30:8080/api/v1/users'; 
     String? token = await _getToken();
 
     final headers = {
@@ -128,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _sendWakeUpRequest(String deviceId, String fcmToken) async {
-    const String apiUrl = 'http://192.168.43.118:8080/api/v1/devices/wakeup';
+    const String apiUrl = 'http://192.168.60.30:8080/api/v1/devices/wakeup';
     String? token = await _getToken();
 
     final headers = {

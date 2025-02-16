@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -9,11 +10,40 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool isMainDevice = true;
+  String deviceId = '';
 
+  @override
+  void initState() {
+    super.initState();
+    _loadDeviceId();
+  }
+
+  // Load deviceId from SharedPreferences
+  Future<void> _loadDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      deviceId = prefs.getString('deviceId') ?? 'Unknown Device';
+    });
+  }
+
+  // Save deviceId to SharedPreferences
+  // Future<void> _saveDeviceId(String deviceId) async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   await prefs.setString('deviceId', deviceId);
+  // }
+
+  // Toggle main device status
   void _toggleMainDevice(bool value) {
     setState(() {
       isMainDevice = value;
     });
+  }
+
+  // Logout function - clear shared preferences
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();  // Clear all saved preferences
+    Navigator.pushReplacementNamed(context, '/login'); // Navigate to login screen (adjust route as needed)
   }
 
   @override
@@ -99,6 +129,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            Text("Device ID: $deviceId", style: TextStyle(fontSize: 14, color: Colors.grey)),
           ],
         ),
       ),
@@ -119,28 +151,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _logoutButton() {
-  return SizedBox(
-    width: double.infinity,
-    child: ElevatedButton(
-      onPressed: () {},
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue.shade800,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _logout,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue.shade800,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            SizedBox(width: 8), // Adds spacing between icon and text
+            Text(
+              "Logout",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const SizedBox(width: 8), // Adds spacing between icon and text
-          const Text(
-            "Logout",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
+    );
+  }
 }

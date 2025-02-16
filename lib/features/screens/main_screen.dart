@@ -15,7 +15,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = [
     HomeScreen(),
-    FileScreen(),  // Add FileScreen to the list
+    FileScreen(),
     ProfileScreen(),
   ];
 
@@ -30,7 +30,7 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _screens, // Use IndexedStack to avoid rebuilding all screens
+        children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
         items: const [

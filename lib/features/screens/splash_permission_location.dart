@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class SplashPermissionLocation extends StatelessWidget {
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            Expanded( // Bagian konten akan menyesuaikan
+            Expanded( 
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -34,9 +35,9 @@ class SplashPermissionLocation extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0), // Jarak dari bawah & samping
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0), 
               child: SizedBox(
-                width: double.infinity, // Membuat tombol full width
+                width: double.infinity, 
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () async {

@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:convert';
-
 import 'register_screen.dart';
 import 'main_screen.dart';
 
@@ -19,6 +18,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   static const MethodChannel _channel =
       MethodChannel('com.example.findmyphone/fcm');
+      static const MethodChannel _channelDevice =
+      MethodChannel('com.example.findmyphone/ANDROID_ID');
   String? _fcmToken;
   String? _deviceId;
   bool _isLoading = false;
@@ -63,23 +64,14 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Mendapatkan Device ID
   Future<void> _getDeviceId() async {
     try {
-      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-      String deviceId;
+      final String deviceId = await _channelDevice.invokeMethod('getAndroidId');
+      print("Device ID: $deviceId");
 
-      if (Theme.of(context).platform == TargetPlatform.android) {
-        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-        deviceId = androidInfo.id; // Android ID
-      } else {
-        IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-        deviceId = iosInfo.identifierForVendor ?? "Unknown"; // iOS Device ID
-      }
-
-      print("$deviceId");
       setState(() {
         _deviceId = deviceId;
       });
-    } catch (e) {
-      print("Error getting Device ID: $e");
+    } on PlatformException catch (e) {
+      print("Error getting Device ID: ${e.message}");
     }
   }
 
@@ -122,6 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('jwt_token', token);
+        await prefs.setString('device_id', _deviceId ?? "Unknown");
 
         _showMessage("Login berhasil!");
 
@@ -145,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (responseData.containsKey("message")) {
       if (responseData["message"] is List) {
         _showMessage(
-            responseData["message"].join(", ")); // Menggabungkan list error
+            responseData["message"].join(", "));
       } else {
         _showMessage(responseData["message"].toString());
       }
@@ -177,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 80),
               Image.asset(
-                'assets/icon-app.png', // Replace with your actual logo asset
+                'assets/icon-app.png',
                 height: 80,
               ),
               const SizedBox(height: 20),
@@ -216,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: BorderRadius.circular(10.0),
                               borderSide: BorderSide(
                                   color: Color(0xFF4882E4),
-                                  width: 2.0), // Warna saat fokus
+                                  width: 2.0),
                             ),
                           ),
                         ),
@@ -234,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   borderRadius: BorderRadius.circular(10.0),
                                   borderSide: BorderSide(
                                       color: Color(0xFF4882E4),
-                                      width: 2.0), // Warna saat fokus
+                                      width: 2.0),
                                 ),
                                 suffixIcon: IconButton(
                                   icon: Icon(

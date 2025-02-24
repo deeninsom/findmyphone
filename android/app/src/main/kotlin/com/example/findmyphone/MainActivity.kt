@@ -30,7 +30,8 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.findmyphone/service"
     private val LOCATION_CHANNEL = "com.example.findmyphone/location"
     private val LAST_LOCATION_CHANNEL = "com.example.findmyphone/lastlocation"
-    private val DEVICE_CHANNEL = "com.example.findmyphone/device"  
+    private val DEVICE_CHANNEL = "com.example.findmyphone/device"
+    private val DEVICE_ID_CHANNEL = "com.example.findmyphone/ANDROID_ID"    
     private val REQUEST_CODE = 1001
     private val REQUEST_CODE_DEVICE_ADMIN = 1002
     private var pendingResult: MethodChannel.Result? = null
@@ -95,6 +96,16 @@ class MainActivity : FlutterActivity() {
                     result.success(isDeviceAdminActive())
                 }
                 else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_ID_CHANNEL).setMethodCallHandler { call, result ->
+            if (call.method == "getAndroidId") {
+                val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+                Log.d("test", "`${androidId}`")
+                result.success(androidId)
+            } else {
+                result.notImplemented()
             }
         }
 

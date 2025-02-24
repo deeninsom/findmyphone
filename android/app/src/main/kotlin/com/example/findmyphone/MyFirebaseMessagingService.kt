@@ -32,7 +32,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
             Log.d("FCM", "Action: $action, Device ID: $deviceId, Message: $message")
 
-            // Panggil fungsi untuk menangani aksi tertentu
             handleDataTrigger(action, deviceId, message)
         }
     }
@@ -41,12 +40,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         when (action) {
             "WAKE_UP" -> {
                 Log.d("FCM", "Triggering wake-up process for device $deviceId")
-                // Tambahkan logika untuk menangani WAKE_UP
                 startForegroundService()
             }
             "SYNC_DATA" -> {
                 Log.d("FCM", "Syncing data for device $deviceId")
-                // Tambahkan logika untuk sinkronisasi data
             }
             else -> {
                 Log.d("FCM", "Unknown action received: $action")
@@ -57,7 +54,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private fun startForegroundService() {
         val serviceIntent = Intent(this, ForegroundService::class.java)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent) // Untuk Android 8+ (Oreo)
+            startForegroundService(serviceIntent)
         } else {
             startService(serviceIntent)
         }

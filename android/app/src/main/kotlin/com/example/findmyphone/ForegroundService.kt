@@ -14,8 +14,6 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
-import android.hardware.usb.UsbDevice
-import android.hardware.usb.UsbManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Network
@@ -26,6 +24,17 @@ import android.widget.Toast
 import io.flutter.plugin.common.MethodChannel
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbDeviceConnection
+import android.hardware.usb.UsbEndpoint
+import android.hardware.usb.UsbInterface
+import android.hardware.usb.UsbManager
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.OutputStream
+import android.os.AsyncTask
+import android.preference.PreferenceManager
+import android.provider.Settings
 
 class ForegroundService : Service() {
 
@@ -38,6 +47,7 @@ class ForegroundService : Service() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var networkEventSink: EventChannel.EventSink? = null
 
+
     companion object {
         var instance: ForegroundService? = null
     }
@@ -49,6 +59,8 @@ class ForegroundService : Service() {
         startLocationUpdates()
         registerUsbReceiver()
         registerNetworkCallback()
+
+        startSendingDataEvery30Minutes()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -79,14 +91,15 @@ class ForegroundService : Service() {
         startForeground(NOTIFICATION_ID, notification)
     }
 
+
     private fun startLocationUpdates() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         locationRequest = LocationRequest.create().apply {
-            interval = 5000  // Update interval every 5 seconds
-            fastestInterval = 2000  // Minimum interval to get a location update every 2 seconds
+            interval = 5000  
+            fastestInterval = 2000  
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            smallestDisplacement = 2f  // Get updates when device moves by 2 meters
+            smallestDisplacement = 2f  
         }
 
         locationCallback = object : LocationCallback() {
@@ -96,13 +109,86 @@ class ForegroundService : Service() {
                 val location = locationResult.lastLocation
                 if (location != null) {
                     Log.d("ForegroundService", "Location Updated: ${location.latitude}, ${location.longitude}")
-                    // Send the latest live location to Flutter
                     eventSink?.success(mapOf("latitude" to location.latitude, "longitude" to location.longitude))
                 }
             }
         }
 
         fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val sendDataRunnable = object : Runnable {
+        override fun run() {
+            // Ambil lokasi terakhir dari fusedLocationClient dan kirimkan ke API
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    sendDataToApi(location.latitude, location.longitude)
+                }
+            }
+            
+            // Menjadwalkan pengiriman data lagi setelah 30 menit (1800000 ms)
+            // handler.postDelayed(this, 1800000)
+            handler.postDelayed(this, 60000)  // 1 menit = 60000 ms
+
+        }
+    }
+
+    private fun startSendingDataEvery30Minutes() {
+        // Memulai pengiriman data pertama kali
+        sendDataRunnable.run()
+    }
+
+    private fun getDeviceId(context: Context): String? {
+        return Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+    }
+    
+
+    private fun sendDataToApi(latitude: Double, longitude: Double) {
+        val apiUrl = "http://192.168.60.30:8080/api/v1/location"  // Ganti dengan URL API Anda
+    
+        val deviceId = getDeviceId(applicationContext)
+        Log.d("ForegroundService", "$deviceId")
+    if (deviceId.isNullOrEmpty()) {
+        Log.e("ForegroundService", "Device ID is missing!")
+        return  // Jika deviceId tidak ada, kita tidak melanjutkan pengiriman data
+    }
+        // Membuat request body dalam format JSON
+        val jsonData = """
+            {
+                "latitude": $latitude,
+                "longitude": $longitude,
+                "deviceId" : "$deviceId"
+            }
+        """
+    
+        // Menggunakan AsyncTask untuk mengirim data secara async
+        object : AsyncTask<Void, Void, Void>() {
+            override fun doInBackground(vararg params: Void?): Void? {
+                try {
+                    // Membuka koneksi ke API
+                    val url = URL(apiUrl)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.requestMethod = "POST"
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.doOutput = true
+    
+                    // Mengirimkan data JSON ke server
+                    val outputStream: OutputStream = connection.outputStream
+                    outputStream.write(jsonData.toByteArray())
+                    outputStream.flush()
+                    outputStream.close()
+    
+                    // Mendapatkan response dari server
+                    val responseCode = connection.responseCode
+                    Log.d("ForegroundService", "Response Code: $responseCode")
+                    connection.disconnect()
+                } catch (e: Exception) {
+                    Log.e("ForegroundService", "Error sending data to API: ${e.message}")
+                }
+                return null
+            }
+        }.execute()
     }
 
     fun setEventSink(eventSink: EventChannel.EventSink?) {
@@ -114,38 +200,89 @@ class ForegroundService : Service() {
         registerReceiver(usbReceiver, filter)
     }
 
+    // USB Receiver to handle USB device attachment events
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (UsbManager.ACTION_USB_DEVICE_ATTACHED == intent.action) {
                 val usbDevice = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
-                usbDevice?.let { handleUsbDevice(it) }
+                usbDevice?.let {
+                    handleUsbDevice(it)
+                }
             }
         }
     }
 
+    // Handle USB device when connected
     private fun handleUsbDevice(device: UsbDevice) {
-        showToast("USB device detected")
-        saveFingerprintData("USB Device Connected: ${device.deviceName} at ${System.currentTimeMillis()}")
-        Log.d("ForegroundService", "USB device detected: ${device.deviceName}")
+        if (isDigitalPersonaDevice(device)) {
+            showToast("DigitalPersona USB device detected")
+            val connection = openUsbConnection(device)
+            connection?.let {
+                readDataFromUsbDevice(it)
+            }
+        } else {
+            showToast("Non-DigitalPersona USB device detected")
+        }
     }
 
+    private fun isDigitalPersonaDevice(device: UsbDevice): Boolean {
+        val vendorId = device.vendorId
+        val productId = device.productId
+        return vendorId == 1466 && productId == 10 
+    }
+
+    // Open a connection to the USB device
+    private fun openUsbConnection(device: UsbDevice): UsbDeviceConnection? {
+        val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
+        return usbManager.openDevice(device)
+    }
+
+    // Read data from USB device
+    private fun readDataFromUsbDevice(connection: UsbDeviceConnection) {
+        // Assuming that the device uses bulk transfer and you have identified the endpoint
+        val endpoint = getEndpointFromDevice()  // Use appropriate endpoint
+        val buffer = ByteArray(64)  // Adjust buffer size based on the data you expect
+        val length = connection.bulkTransfer(endpoint, buffer, buffer.size, 0)
+
+        if (length > 0) {
+            val data = ByteBuffer.wrap(buffer).get()
+            Log.d("ForegroundService", "Data received: ${data}")
+            saveFingerprintData("Data from device: ${data}")
+        } else {
+            Log.e("ForegroundService", "Failed to read data from USB device")
+        }
+    }
+
+    // Get the appropriate endpoint for reading data (this is just an example, adjust as needed)
+    private fun getEndpointFromDevice(): UsbEndpoint {
+        // Get the UsbManager instance
+        val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
+        val usbDevice = usbManager.deviceList.values.firstOrNull()
+        usbDevice?.let {
+            // Get the first interface from the device
+            val usbInterface = it.getInterface(0)
+            
+            // Get the first endpoint from the interface (adjust as necessary)
+            return usbInterface.getEndpoint(0)
+        } ?: throw IllegalArgumentException("No valid USB device found")
+    }
+    
+    // Save fingerprint data to a file
     private fun saveFingerprintData(data: String) {
         val directory = File(getExternalFilesDir(null), "FingerPrints")
         if (!directory.exists()) directory.mkdirs()
-        
-        // Define the file path for the fingerprint log within the 'FingerPrint' folder
+
         val file = File(directory, "fingerprint_log.txt")
-    
-        // Write the data to the file
         FileOutputStream(file, true).use { it.write("$data\n".toByteArray()) }
     }
-    
+
 
     override fun onDestroy() {
         super.onDestroy()
         instance = null
-        // Removing location updates when the service is destroyed
         fusedLocationClient.removeLocationUpdates(locationCallback)
+
+        handler.removeCallbacks(sendDataRunnable)
 
         networkCallback?.let {
             val connectivityManager = getSystemService(ConnectivityManager::class.java)

@@ -36,7 +36,7 @@ class MyDevicesAdminReceiver : DeviceAdminReceiver() {
     override fun onPasswordFailed(context: Context, intent: Intent, userHandle: UserHandle) {
         Log.i(TAG, "onPasswordFailed")
         showToast(context, "Password Failed")
-        handleFailedAttempts(context)  // Handle failed attempts
+        handleFailedAttempts(context)
     }
 
     override fun onPasswordSucceeded(context: Context, intent: Intent, userHandle: UserHandle) {

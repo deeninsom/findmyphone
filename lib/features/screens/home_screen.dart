@@ -16,7 +16,8 @@ class _HomeScreenState extends State<HomeScreen> {
       MethodChannel('com.example.findmyphone/device');
   static const MethodChannel _platformNetwork =
       MethodChannel('com.example.findmyphone/network');
-
+static const MethodChannel _channelDevice =
+      MethodChannel('com.example.findmyphone/ANDROID_ID');
   String _deviceModel = "Loading...";
   String _deviceBattery = "Loading...";
   String _deviceChip = "Loading...";
@@ -31,13 +32,13 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _getDeviceInfo();
     _getNetworkStatus();
-    WidgetsBinding.instance.addPostFrameCallback((_){
-    _getDeviceId();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _getDeviceId();
     });
     _fetchDevices(); // Fetch devices from API
   }
 
-/// Mendapatkan Device ID
+  /// Mendapatkan Device ID
   /// Fetch device info using MethodChannel
   Future<void> _getDeviceInfo() async {
     try {
@@ -58,7 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Get initial network status
   Future<void> _getNetworkStatus() async {
     try {
-      final String status = await _platformNetwork.invokeMethod('getNetworkStatus');
+      final String status =
+          await _platformNetwork.invokeMethod('getNetworkStatus');
       setState(() {
         _networkStatus = status.toString();
       });
@@ -74,31 +76,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Mendapatkan Device ID
-  Future<void> _getDeviceId() async {
+ Future<void> _getDeviceId() async {
     try {
-      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-      String deviceId;
+      final String deviceId = await _channelDevice.invokeMethod('getAndroidId');
+      print("Device ID: $deviceId");
 
-      if (Theme.of(context).platform == TargetPlatform.android) {
-        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-        deviceId = androidInfo.id; // Android ID
-      } else {
-        IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-        deviceId = iosInfo.identifierForVendor ?? "Unknown"; // iOS Device ID
-      }
-
-      print("$deviceId");
       setState(() {
         _deviceId = deviceId;
       });
-    } catch (e) {
-      print("Error getting Device ID: $e");
+    } on PlatformException catch (e) {
+      print("Error getting Device ID: ${e.message}");
     }
   }
 
   /// Fetch devices from API
   Future<void> _fetchDevices() async {
-    const String apiUrl = 'http://192.168.60.30:8080/api/v1/users'; 
+    const String apiUrl = 'http://192.168.60.30:8080/api/v1/users';
     String? token = await _getToken();
 
     final headers = {
@@ -106,18 +99,17 @@ class _HomeScreenState extends State<HomeScreen> {
       'Content-Type': 'application/json',
     };
 
-  try {
-    final response = await http.get(Uri.parse(apiUrl), headers: headers);
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
+    try {
+      final response = await http.get(Uri.parse(apiUrl), headers: headers);
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
 
-      // Filter: Hanya tampilkan perangkat dengan deviceId berbeda
-      List<dynamic> filteredDevices = data['devices']
-          .where((device) => device['deviceId'] != _deviceId)
-          .toList();
+        List<dynamic> filteredDevices = data['devices']
+            .where((device) => device['deviceId'] != _deviceId)
+            .toList();
 
-      setState(() {
-        _devices = filteredDevices; // Simpan daftar yang telah difilter
+        setState(() {
+          _devices = filteredDevices;
         });
       } else {
         print("Failed to load devices: ${response.statusCode}");
@@ -138,11 +130,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final body = jsonEncode({
       'deviceId': deviceId,
-      'fcmToken': fcmToken, // Include FCM token in the request
+      'fcmToken': fcmToken,
     });
 
     try {
-      final response = await http.post(Uri.parse(apiUrl), headers: headers, body: body);
+      final response =
+          await http.post(Uri.parse(apiUrl), headers: headers, body: body);
       if (response.statusCode == 201) {
         print("Wake-up signal sent successfully to $deviceId");
       } else {
@@ -255,59 +248,56 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _deviceList(BuildContext context) {
-  if (_devices.isEmpty) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Text("No devices found."),
-      ),
+    if (_devices.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text("No devices found."),
+        ),
+      );
+    }
+
+    return Column(
+      children: _devices.map<Widget>((device) {
+        return _deviceTile(
+          context,
+          device['deviceId'] ?? 'Unknown',
+          device['fcmToken'] ?? '',
+          "Online",
+          "Unknown",
+          "N/A",
+        );
+      }).toList(),
     );
   }
 
-  return Column(
-    children: _devices.map<Widget>((device) {
-      return _deviceTile(
-        context,
-        device['deviceId'] ?? 'Unknown', // Perbaikan
-        device['fcmToken'] ?? '',
-        "Online",
-        "Unknown",
-        "N/A",
-      );
-    }).toList(),
-  );
-}
-
-Widget _deviceTile(BuildContext context, String deviceId, String fcmToken,
-    String status, String distance, String battery) {
-  return Card(
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-    elevation: 3,
-    child: ListTile(
-      leading: Icon(
-        status == "Online" ? Icons.wifi : Icons.wifi_off,
-        color: status == "Online" ? Colors.green : Colors.red,
-      ),
-      title: Text("Device ID: $deviceId"),
-      subtitle: Row(
-        children: [
-          const Icon(Icons.location_on, size: 16, color: Colors.blue),
-          Text(" $distance  "),
-          const Icon(Icons.battery_charging_full, size: 16, color: Colors.green),
-          Text(" $battery"),
-        ],
-      ),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder : (context) => LocationScreen() 
-          )
-        )
-      }
-      // onTap: () => _sendWakeUpRequest(deviceId, fcmToken), // Perbaikan
-    ),
-  );
-}
+  Widget _deviceTile(BuildContext context, String deviceId, String fcmToken,
+      String status, String distance, String battery) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      elevation: 3,
+      child: ListTile(
+          leading: Icon(
+            status == "Online" ? Icons.wifi : Icons.wifi_off,
+            color: status == "Online" ? Colors.green : Colors.red,
+          ),
+          title: Text("Device ID: $deviceId"),
+          subtitle: Row(
+            children: [
+              const Icon(Icons.location_on, size: 16, color: Colors.blue),
+              Text(" $distance  "),
+              const Icon(Icons.battery_charging_full,
+                  size: 16, color: Colors.green),
+              Text(" $battery"),
+            ],
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => {
+                Navigator.pushReplacement(context,
+                    MaterialPageRoute(builder: (context) => LocationScreen()))
+              }
+          // onTap: () => _sendWakeUpRequest(deviceId, fcmToken), // Perbaikan
+          ),
+    );
+  }
 }

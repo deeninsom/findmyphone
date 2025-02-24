@@ -18,26 +18,25 @@ class _LocationScreenState extends State<LocationScreen> {
 
   LatLng? _currentPosition;
   bool _isLoading = true;
-  final LatLng _destination = LatLng(-7.364879432981343, 112.72897518124178);  // Example destination coordinates
+  final LatLng _destination = LatLng(-7.364879432981343, 112.72897518124178);  
 
-  late StreamSubscription _locationSubscription;  // To hold the subscription
+  late StreamSubscription _locationSubscription; 
 
   @override
   void initState() {
     super.initState();
 
-    _getInitialLocation(); // Get initial location before listening for updates
-    _startListeningLocation(); // Start listening for real-time location updates
+    _getInitialLocation();
+    _startListeningLocation(); 
   }
 
   @override
   void dispose() {
-    // Cancel the subscription when the widget is disposed
     _locationSubscription.cancel();
     super.dispose();
   }
 
-  /// Get the initial location using MethodChannel
+
   Future<void> _getInitialLocation() async {
     var position = await Geolocator.getCurrentPosition();
     setState(() {
@@ -50,7 +49,7 @@ class _LocationScreenState extends State<LocationScreen> {
   void _startListeningLocation() {
     _locationSubscription = _eventLocationChannel.receiveBroadcastStream().listen(
       (event) {
-        if (!mounted) return;  // Ensure widget is still mounted
+        if (!mounted) return;  
         print("Received location: $event");
         final double latitude = event['latitude'];
         final double longitude = event['longitude'];
